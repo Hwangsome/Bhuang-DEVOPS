@@ -1,0 +1,81 @@
+# AWS 资源配置文件示例
+# 通过此 YAML 文件定义要创建的 AWS 资源
+
+# S3 存储桶
+s3_buckets:
+  - name: my-example-bucket-12345
+    tags:
+      Environment: dev
+      Owner: devops-team
+  
+  - name: my-logs-bucket-12345
+    tags:
+      Environment: dev
+      Purpose: logging
+
+# EC2 实例
+ec2_instances:
+  - name: web-server
+    ami: ami-0c55b159cbfafe1f0  # Amazon Linux 2 AMI ID (示例)
+    instance_type: t2.micro
+    key_name: my-key-pair
+    root_block_device:
+      volume_size: 20
+      volume_type: gp2
+    tags:
+      Environment: dev
+      Role: web-server
+
+  - name: app-server
+    ami: ami-0c55b159cbfafe1f0  # Amazon Linux 2 AMI ID (示例)
+    instance_type: t2.small
+    key_name: my-key-pair
+    tags:
+      Environment: dev
+      Role: application-server
+
+# DynamoDB 表
+dynamodb_tables:
+  - name: users-table
+    hash_key: user_id
+    attributes:
+      - name: user_id
+        type: S
+    tags:
+      Environment: dev
+      Project: user-management
+
+  - name: products-table
+    hash_key: product_id
+    billing_mode: PROVISIONED
+    read_capacity: 5
+    write_capacity: 5
+    attributes:
+      - name: product_id
+        type: S
+    tags:
+      Environment: dev
+      Project: inventory
+
+# Lambda 函数
+lambda_functions:
+  - name: process-data
+    handler: index.handler
+    runtime: nodejs14.x
+    role_arn: arn:aws:iam::123456789012:role/lambda-role
+    filename: ../functions/process-data.zip
+    environment:
+      LOG_LEVEL: info
+      DB_TABLE: users-table
+    tags:
+      Environment: dev
+      Service: data-processing
+
+# VPC 配置
+vpcs:
+  - name: main-vpc
+    cidr_block: 10.0.0.0/16
+    enable_dns_hostnames: true
+    enable_dns_support: true
+    tags:
+      Environment: dev
