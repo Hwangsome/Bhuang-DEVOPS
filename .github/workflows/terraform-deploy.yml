@@ -1,0 +1,107 @@
+name: Terraform Deployment
+
+on:
+  push:
+    branches: [ main, master ]
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Terraform operation to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - init
+          - plan
+          - apply
+      context:
+        description: 'Deployment context (dev, staging, prod)'
+        required: true
+        default: 'dev'
+        type: string
+      region:
+        description: 'AWS Region'
+        required: true
+        default: 'us-west-1'
+        type: string
+      layer_identifier:
+        description: 'Infrastructure layer'
+        required: true
+        default: 'infra'
+        type: string
+
+jobs:
+  terraform:
+    name: 'Terraform Operation'
+    runs-on: ubuntu-latest
+    
+    # Use GitHub OIDC provider to get AWS credentials
+    permissions:
+      id-token: write
+      contents: read
+    
+    env:
+      TEAMCITY_WORK_DIR: ${{ github.workspace }}
+      CONTEXT: ${{ github.event.inputs.context || 'dev' }}
+      REGION: ${{ github.event.inputs.region || 'us-west-1' }}
+      LAYER_IDENTIFIER: ${{ github.event.inputs.layer_identifier || 'infra' }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: "1.5.0"
+      
+      # Uncomment if you need AWS credentials
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v2
+      #   with:
+      #     role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      #     role-session-name: GitHubActions
+      #     aws-region: ${{ env.REGION }}
+      
+      - name: Make scripts executable
+        run: chmod +x scripts/terraform_*.sh
+      
+      - name: Create configs directory if it doesn't exist
+        run: mkdir -p ${{ github.workspace }}/configs
+      
+      - name: Generate YAML config file
+        run: |
+          # This is a placeholder - you might want to generate this file from a template
+          # or retrieve it from a secure location
+          cat > ${{ github.workspace }}/configs/${{ env.CONTEXT }}.${{ env.REGION }}.${{ env.LAYER_IDENTIFIER }}.yml << EOF
+          # Auto-generated YAML configuration
+          region: ${{ env.REGION }}
+          environment: ${{ env.CONTEXT }}
+          # Add more parameters as needed
+          EOF
+      
+      # For automatic workflows on push/PR - always do plan only
+      - name: Terraform Init (Auto)
+        if: github.event_name != 'workflow_dispatch'
+        run: ./scripts/terraform_init.sh
+      
+      - name: Terraform Plan (Auto)
+        if: github.event_name != 'workflow_dispatch'
+        run: ./scripts/terraform_plan.sh
+      
+      # For manual workflows - do the specified operation
+      - name: Terraform Init
+        if: github.event_name == 'workflow_dispatch' && (github.event.inputs.operation == 'init' || github.event.inputs.operation == 'plan' || github.event.inputs.operation == 'apply')
+        run: ./scripts/terraform_init.sh
+      
+      - name: Terraform Plan
+        if: github.event_name == 'workflow_dispatch' && (github.event.inputs.operation == 'plan' || github.event.inputs.operation == 'apply')
+        run: ./scripts/terraform_plan.sh
+      
+      - name: Terraform Apply
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.operation == 'apply'
+        run: ./scripts/terraform_apply.sh

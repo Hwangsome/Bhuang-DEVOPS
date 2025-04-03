@@ -1,0 +1,63 @@
+---
+function_name: "example-lambda-function"
+description: "Lambda function defined from YAML configuration"
+handler: "index.handler"
+runtime: "nodejs18.x"
+memory_size: 256
+timeout: 30
+publish: true
+
+# 环境变量配置
+environment_variables:
+  ENV: "production"
+  LOG_LEVEL: "info"
+  API_ENDPOINT: "https://api.example.com"
+
+# VPC配置
+vpc_config:
+  subnet_ids:
+    - "subnet-abc123"
+    - "subnet-def456"
+  security_group_ids:
+    - "sg-123456"
+
+# 代码包配置
+package:
+  type: "Zip"
+  source_path: "./src/lambda-function"
+  # 或者使用S3
+  # s3_bucket: "my-lambda-bucket"
+  # s3_key: "lambda-functions/my-function.zip"
+
+# 死信队列配置
+dead_letter_target_arn: "arn:aws:sqs:us-east-1:123456789012:my-dlq"
+
+# 追踪配置
+tracing_mode: "Active"
+
+# 层配置
+layers:
+  - "arn:aws:lambda:us-east-1:123456789012:layer:my-layer:1"
+
+# IAM角色配置
+create_role: true
+# 如果不想创建新角色，可以使用现有的
+# lambda_role: "arn:aws:iam::123456789012:role/existing-lambda-role"
+
+# 策略配置
+policy_statements:
+  s3_access:
+    effect: "Allow"
+    actions:
+      - "s3:GetObject"
+      - "s3:PutObject"
+    resources:
+      - "arn:aws:s3:::my-bucket/*"
+  
+  dynamodb_access:
+    effect: "Allow"
+    actions:
+      - "dynamodb:GetItem"
+      - "dynamodb:PutItem"
+    resources:
+      - "arn:aws:dynamodb:us-east-1:123456789012:table/my-table"

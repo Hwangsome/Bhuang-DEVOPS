@@ -1,0 +1,50 @@
+---
+function_name: "api-gateway-function"
+description: "API Gateway Lambda Function - 通过YAML配置"
+handler: "api.handler"
+runtime: "nodejs18.x"
+memory_size: 512
+timeout: 10
+publish: true
+
+# 环境变量配置
+environment_variables:
+  STAGE: "prod"
+  DB_CONNECTION: "mongodb://db.example.com:27017"
+  API_KEY: "{{ssm:/api/keys/example}}"  # 使用SSM参数存储引用敏感信息
+
+# VPC配置
+vpc_config:
+  subnet_ids:
+    - "subnet-12345678"
+    - "subnet-87654321"
+  security_group_ids:
+    - "sg-abcdef12"
+
+# 代码包配置
+package:
+  type: "Zip"
+  source_path: "./src/api-function"
+
+# 追踪配置
+tracing_mode: "Active"
+
+# 策略配置 - 允许访问DynamoDB和SNS
+policy_statements:
+  dynamodb_access:
+    effect: "Allow"
+    actions:
+      - "dynamodb:GetItem"
+      - "dynamodb:PutItem"
+      - "dynamodb:UpdateItem"
+      - "dynamodb:Query"
+    resources:
+      - "arn:aws:dynamodb:*:*:table/users"
+      - "arn:aws:dynamodb:*:*:table/transactions"
+  
+  sns_publish:
+    effect: "Allow"
+    actions:
+      - "sns:Publish"
+    resources:
+      - "arn:aws:sns:*:*:user-notifications"

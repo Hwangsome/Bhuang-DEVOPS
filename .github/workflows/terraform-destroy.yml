@@ -1,0 +1,87 @@
+name: Terraform Destroy
+
+# Only allow manual triggers for destroy operations
+on:
+  workflow_dispatch:
+    inputs:
+      context:
+        description: 'Deployment context (dev, staging, prod)'
+        required: true
+        default: 'dev'
+        type: string
+      region:
+        description: 'AWS Region'
+        required: true
+        default: 'us-west-1'
+        type: string
+      layer_identifier:
+        description: 'Infrastructure layer'
+        required: true
+        default: 'infra'
+        type: string
+      confirmation:
+        description: 'Type "DESTROY" to confirm'
+        required: true
+        type: string
+
+jobs:
+  terraform_destroy:
+    name: 'Terraform Destroy'
+    runs-on: ubuntu-latest
+    
+    # Use GitHub OIDC provider to get AWS credentials
+    permissions:
+      id-token: write
+      contents: read
+    
+    # Only run if the confirmation is correct
+    if: ${{ github.event.inputs.confirmation == 'DESTROY' }}
+    
+    env:
+      TEAMCITY_WORK_DIR: ${{ github.workspace }}
+      CONTEXT: ${{ github.event.inputs.context }}
+      REGION: ${{ github.event.inputs.region }}
+      LAYER_IDENTIFIER: ${{ github.event.inputs.layer_identifier }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: "1.5.0"
+      
+      # Uncomment if you need AWS credentials
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v2
+      #   with:
+      #     role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      #     role-session-name: GitHubActions
+      #     aws-region: ${{ env.REGION }}
+      
+      - name: Make scripts executable
+        run: chmod +x scripts/terraform_*.sh
+      
+      - name: Create configs directory if it doesn't exist
+        run: mkdir -p ${{ github.workspace }}/configs
+      
+      - name: Generate YAML config file
+        run: |
+          # This is a placeholder - you might want to generate this file from a template
+          # or retrieve it from a secure location
+          cat > ${{ github.workspace }}/configs/${{ env.CONTEXT }}.${{ env.REGION }}.${{ env.LAYER_IDENTIFIER }}.yml << EOF
+          # Auto-generated YAML configuration
+          region: ${{ env.REGION }}
+          environment: ${{ env.CONTEXT }}
+          # Add more parameters as needed
+          EOF
+      
+      - name: Terraform Init
+        run: ./scripts/terraform_init.sh
+      
+      - name: Terraform Destroy
+        run: ./scripts/terraform_destroy.sh
+        
+      - name: Confirm Destruction Completed
+        run: echo "Infrastructure destruction completed for ${{ env.CONTEXT }}.${{ env.REGION }}.${{ env.LAYER_IDENTIFIER }}"

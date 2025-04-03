@@ -19,6 +19,9 @@ provider "aws" {
 locals {
   config_content = fileexists(var.config_file) ? file(var.config_file) : "{}"
   config         = yamldecode(local.config_content)
+  
+  # Lambda配置也从同一个配置文件获取
+  lambda_configs = try(local.config.lambda_functions, {})
 }
 
 # 创建 S3 存储桶
@@ -85,32 +88,49 @@ module "dynamodb_table" {
 }
 
 # 创建 Lambda 函数
-module "lambda_function" {
-  source   = "./modules/lambda_function"
-  for_each = { for function in try(local.config.lambda_functions, []) : function.name => function }
+module "lambda" {
+  source   = "./modules/lambda"
+  for_each = local.lambda_configs
 
-  name             = each.key
-  description      = try(each.value.description, "")
-  handler          = each.value.handler
-  runtime          = each.value.runtime
-  role_arn         = each.value.role_arn
+  # 基本设置
+  function_name = try(each.value.function_name, each.key)
+  description   = try(each.value.description, null)
+  handler       = try(each.value.handler, null)
+  runtime       = try(each.value.runtime, null)
+  memory_size   = try(each.value.memory_size, null)
+  timeout       = try(each.value.timeout, null)
+  publish       = try(each.value.publish, null)
   
-  # 源代码位置 (本地或 S3)
-  filename         = try(each.value.filename, null)
-  s3_bucket        = try(each.value.s3_bucket, null)
-  s3_key           = try(each.value.s3_key, null)
-  source_code_hash = try(each.value.source_code_hash, null)
+  # 环境变量
+  environment_variables = try(each.value.environment_variables, {})
   
-  timeout          = try(each.value.timeout, 3)
-  memory_size      = try(each.value.memory_size, 128)
-  publish          = try(each.value.publish, false)
+  # VPC配置
+  vpc_subnet_ids        = try(each.value.vpc_config.subnet_ids, [])
+  vpc_security_group_ids = try(each.value.vpc_config.security_group_ids, [])
   
-  environment_variables = try(each.value.environment, null)
+  # 死信队列配置
+  dead_letter_target_arn = try(each.value.dead_letter_target_arn, null)
   
-  subnet_ids       = try(each.value.subnet_ids, [])
-  security_group_ids = try(each.value.security_group_ids, [])
+  # 追踪配置
+  tracing_mode = try(each.value.tracing_mode, null)
   
-  tags = try(each.value.tags, {})
+  # 层配置
+  layers = try(each.value.layers, [])
+  
+  # 代码包配置
+  create_package = try(each.value.package.source_path, null) != null
+  source_path = try(each.value.package.source_path, null)
+  
+  # S3配置 (如果有)
+  s3_bucket = try(each.value.package.s3_bucket, null)
+  s3_key    = try(each.value.package.s3_key, null)
+  
+  # 策略配置
+  attach_policy_statements = length(try(each.value.policy_statements, {})) > 0
+  policy_statements        = try(each.value.policy_statements, {})
+  
+  # 通用标签
+  tags = merge(var.default_tags, try(each.value.tags, {}))
 }
 
 # 创建 VPC
@@ -152,7 +172,7 @@ output "dynamodb_tables" {
 }
 
 output "lambda_functions" {
-  value = { for k, v in module.lambda_function : k => v.function_name }
+  value = { for k, v in module.lambda : k => v.function_name }
 }
 
 output "vpcs" {
